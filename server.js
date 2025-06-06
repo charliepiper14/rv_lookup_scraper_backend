@@ -1,7 +1,6 @@
 
 const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 const cors = require('cors');
 
 const app = express();
@@ -13,29 +12,38 @@ app.get('/lookup-addresses', async (req, res) => {
     return res.status(400).json({ error: "Missing postcode" });
   }
 
-  const searchUrl = `https://www.tax.service.gov.uk/business-rates-find/search?postcode=${encodeURIComponent(postcode)}`;
+  const results = [];
+
   try {
-    const response = await axios.get(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Rateable Value Tool)'
-      }
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
-    const $ = cheerio.load(response.data);
-    const results = [];
-
-    $('a.govuk-link').each((i, el) => {
-      const href = $(el).attr('href');
-      const idMatch = href.match(/\/valuations\/start\/(\d+)/);
-      if (idMatch) {
-        results.push({ id: idMatch[1], address: $(el).text().trim() });
-      }
+    const page = await browser.newPage();
+    await page.goto(`https://www.tax.service.gov.uk/business-rates-find/search?postcode=${encodeURIComponent(postcode)}`, {
+      waitUntil: 'networkidle0'
     });
 
-    return res.json(results);
-  } catch (err) {
-    console.error("Scraping error:", err.message);
-    return res.status(500).json({ error: "Failed to fetch from VOA" });
+    const addresses = await page.evaluate(() => {
+      const anchors = Array.from(document.querySelectorAll('a.govuk-link'));
+      return anchors
+        .filter(a => a.href.includes('/valuations/start/'))
+        .map(a => {
+          const idMatch = a.href.match(/\/valuations\/start\/(\d+)/);
+          return {
+            id: idMatch ? idMatch[1] : null,
+            address: a.textContent.trim()
+          };
+        })
+        .filter(r => r.id);
+    });
+
+    await browser.close();
+    return res.json(addresses);
+  } catch (error) {
+    console.error("Puppeteer scraping error:", error.message);
+    return res.status(500).json({ error: "Failed to scrape addresses" });
   }
 });
 
