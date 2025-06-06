@@ -1,13 +1,14 @@
 {
-  "name": "rv-lookup-puppeteer",
+  "name": "rv-lookup-final",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "puppeteer": "^21.3.8"
+    "cors": "^2.8.5",
+    "puppeteer": "^21.3.8",
+    "axios": "^1.6.0"
   }
 }
